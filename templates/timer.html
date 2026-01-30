@@ -3,7 +3,7 @@
 {% block title %}Timer Trigger - Activity Launch App{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
+<div class="row justify-content-center align-items-center" style="min-height: 75vh;">
     <div class="col-lg-8">
         {% if not launch_time %}
         <!-- Scheduling Form -->
@@ -16,6 +16,7 @@
             <div class="card-body p-4">
                 <form action="{{ url_for('schedule_launch') }}" method="POST">
                     <div class="mb-4">
+                        <input type="hidden" name="launch_time_hidden" value="1">
                         <label for="launch_time" class="form-label">
                             <i class="fas fa-calendar-alt me-2"></i>Select Launch Time
                         </label>
@@ -24,7 +25,7 @@
                             Choose the date and time when you want to trigger the launch.
                         </div>
                     </div>
-                    
+
                     <div class="text-center">
                         <button type="submit" class="btn btn-primary btn-lg">
                             <i class="fas fa-clock me-2"></i>Schedule Launch
@@ -35,20 +36,22 @@
         </div>
         {% else %}
         <!-- Countdown Display -->
-        <div class="card">
-            <div class="card-header bg-success text-white text-center">
-                <h2 class="mb-0">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-success text-white text-center py-3">
+                <h2 class="mb-0 fw-bold">
                     <i class="fas fa-hourglass-half me-2"></i>Countdown to Launch
                 </h2>
             </div>
-            <div class="card-body p-4 text-center">
-                <div class="display-3 mb-3" id="timer-display">--:--:--</div>
+            <div class="card-body p-5 text-center">
+                <div class="display-1 fw-bold mb-4" id="timer-display" style="font-family: monospace;">--:--:--</div>
+                <div id="timer-data" data-launch-time="{{ launch_time }}" style="display:none;"></div>
                 <div class="mb-2 text-muted">Scheduled for: <span id="scheduled-time">{{ launch_time }}</span></div>
                 <div class="alert alert-info">Keep this page open. Launch will execute automatically.</div>
             </div>
         </div>
         {% endif %}
-        
+
+        {% if not launch_time %}
         <!-- Quick Schedule Options -->
         <div class="card mt-4">
             <div class="card-header">
@@ -81,7 +84,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Current Time Display -->
         <div class="card mt-4">
             <div class="card-header">
@@ -115,7 +118,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Instructions -->
         <div class="card mt-4">
             <div class="card-header">
@@ -144,71 +147,113 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="text-center mt-4">
             <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
                 <i class="fas fa-arrow-left me-2"></i>Back to Configuration
             </a>
         </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-{% if launch_time %}
-let timerInterval;
-let countdownInterval;
-let launched = false;
-let launchTime = new Date("{{ launch_time }}").getTime();
+    let timerInterval;
+    let countdownInterval;
+    let launched = false;
 
-function startTimer(targetTime) {
-    timerInterval = setInterval(function() {
-        let now = new Date().getTime();
-        let distance = targetTime - now;
-        if (distance <= 0 && !launched) {
-            clearInterval(timerInterval);
-            showCountdownAndLaunch();
-        } else if (!launched) {
-            updateTimerDisplay(distance);
+    function startTimer(targetTime) {
+        timerInterval = setInterval(function () {
+            let now = new Date().getTime();
+            let distance = targetTime - now;
+            if (distance <= 0 && !launched) {
+                clearInterval(timerInterval);
+                showCountdownAndLaunch();
+            } else if (!launched) {
+                updateTimerDisplay(distance);
+            }
+        }, 500);
+    }
+
+    function updateTimerDisplay(distance) {
+        let seconds = Math.floor((distance / 1000) % 60);
+        let minutes = Math.floor((distance / (1000 * 60)) % 60);
+        let hours = Math.floor((distance / (1000 * 60 * 60)) % 24);
+        let days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        let display = '';
+        if (days > 0) display += days + 'd ';
+        if (hours > 0 || days > 0) display += hours + 'h ';
+        if (minutes > 0 || hours > 0 || days > 0) display += minutes + 'm ';
+        display += seconds + 's';
+        document.getElementById('timer-display').textContent = display;
+    }
+
+    function showCountdownAndLaunch() {
+        launched = true;
+        let countdown = 3;
+        document.getElementById('timer-display').textContent = countdown;
+        countdownInterval = setInterval(function () {
+            countdown--;
+            if (countdown > 0) {
+                document.getElementById('timer-display').textContent = countdown;
+            } else {
+                clearInterval(countdownInterval);
+                document.getElementById('timer-display').textContent = 'Launching...';
+                setTimeout(function () {
+                    window.location.href = "{{ url_for('launch') }}";
+                }, 500);
+            }
+        }, 1000);
+    }
+
+    // Wake Lock Logic
+    let wakeLock = null;
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Screen Wake Lock active');
+                wakeLock.addEventListener('release', () => {
+                    console.log('Screen Wake Lock released');
+                });
+            }
+        } catch (err) {
+            console.error(`${err.name}, ${err.message}`);
         }
-    }, 500);
-}
+    }
 
-function updateTimerDisplay(distance) {
-    let seconds = Math.floor((distance / 1000) % 60);
-    let minutes = Math.floor((distance / (1000 * 60)) % 60);
-    let hours = Math.floor((distance / (1000 * 60 * 60)) % 24);
-    let days = Math.floor(distance / (1000 * 60 * 60 * 24));
-    let display = '';
-    if (days > 0) display += days + 'd ';
-    if (hours > 0 || days > 0) display += hours + 'h ';
-    if (minutes > 0 || hours > 0 || days > 0) display += minutes + 'm ';
-    display += seconds + 's';
-    document.getElementById('timer-display').textContent = display;
-}
-
-function showCountdownAndLaunch() {
-    launched = true;
-    let countdown = 3;
-    document.getElementById('timer-display').textContent = countdown;
-    countdownInterval = setInterval(function() {
-        countdown--;
-        if (countdown > 0) {
-            document.getElementById('timer-display').textContent = countdown;
-        } else {
-            clearInterval(countdownInterval);
-            document.getElementById('timer-display').textContent = 'Launching...';
-            setTimeout(function() {
-                window.location.href = '{{ url_for("launch") }}';
-            }, 500);
+    // Re-acquire lock if visibility changes (e.g. tab switch)
+    document.addEventListener('visibilitychange', async () => {
+        if (wakeLock !== null && document.visibilityState === 'visible') {
+            await requestWakeLock();
         }
-    }, 1000);
-}
+    });
 
-document.addEventListener('DOMContentLoaded', function() {
-    startTimer(launchTime);
-});
-{% endif %}
+    // Quick Time Setter
+    function setQuickTime(minutes) {
+        const now = new Date();
+        const future = new Date(now.getTime() + minutes * 60000);
+
+        // Format to YYYY-MM-DDTHH:mm (required for datetime-local input)
+        // Note: We need to handle local time zone offset correctly
+        const offset = future.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(future - offset)).toISOString().slice(0, 16);
+
+        const input = document.getElementById('launch_time');
+        if (input) {
+            input.value = localISOTime;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const timerData = document.getElementById('timer-data');
+        if (timerData && timerData.dataset.launchTime) {
+            let launchTime = new Date(timerData.dataset.launchTime).getTime();
+            startTimer(launchTime);
+            requestWakeLock();
+        }
+    });
 </script>
 {% endblock %}
