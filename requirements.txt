@@ -1,0 +1,11 @@
+Flask>=2.3.0
+opencv-python>=4.8.0
+speechrecognition>=3.10.0
+qrcode>=7.4.0
+pyzbar>=0.1.9
+Pillow>=9.0.0
+Werkzeug>=2.3.0
+schedule>=1.2.0
+numpy>=1.21.0
+# PyAudio is optional - install manually if needed for voice commands
+# pip install pyaudio
